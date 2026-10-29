@@ -1,0 +1,56 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary
+*.test
+
+# Output
+*.out
+
+# Dependency directories
+vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Tasks
+.tasks/
+
+# Config (contains sensitive data)
+configs/*.yaml
+!configs/*.example.yaml
+
+# Logs
+*.log
+
+# Environment (managed via SCP, contains secrets)
+.env
+.env.*
+!.env.example
+
+# Local SQLite data
+data/*.db
+data/*.db-*
+*.sqlite
+*.sqlite3
+/bot
+/chavipbot
+/n6bot
+
+# 本机运维记录，不进公开仓库
+.cursor/
+progress.md
+progress-archive.md
+._*
+._.
