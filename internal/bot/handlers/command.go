@@ -1252,7 +1252,7 @@ func (h *Handler) handleForwardKeywordCommand(message *telego.Message, args []st
 }
 
 // handleInviteKeywordCommand 处理邀请链接群名关键词。
-// 只解析消息里的链接，拿群名做匹配，不看群简介。
+// 解析消息和用户简介里的链接，只拿群名做匹配，不看群简介。
 func (h *Handler) handleInviteKeywordCommand(message *telego.Message, args []string) {
 	if !h.IsAdmin(message.From.ID) {
 		return
@@ -1262,7 +1262,7 @@ func (h *Handler) handleInviteKeywordCommand(message *telego.Message, args []str
 	}
 	if len(args) == 0 {
 		h.notifySvc.SendMessage(message.Chat.ID,
-			"用法: /q &lt;关键词&gt; 或 /q list\n\n只看消息里的邀请链接。群名包含关键词即拉黑，不看群简介")
+			"用法: /q &lt;关键词&gt; 或 /q list\n\n消息和用户简介里的邀请链接，群名包含关键词即拉黑。不看群简介")
 		return
 	}
 	if args[0] == "list" {

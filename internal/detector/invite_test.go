@@ -124,3 +124,23 @@ func TestMessageInviteKeyword(t *testing.T) {
 		t.Fatalf("title hit = %v %s %s err=%v", hit, banType, keyword, err)
 	}
 }
+
+func TestBioInviteLinkUsesGroupTitle(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, groupPreview)
+	}))
+	defer srv.Close()
+
+	c := cache.NewCacheService("bio")
+	if err := c.AddKeyword(string(models.KeywordTypeInvite), "小额洗资"); err != nil {
+		t.Fatal(err)
+	}
+	c.SetCachedBio(7, "https://t.me/+AbcdEfgh12345678")
+	c.MarkBioSynced(7)
+
+	bio := &BioDetector{cache: c, invites: newInviteResolver(srv.Client(), srv.URL)}
+	hit, banType, keyword, err := bio.Check(&telego.Message{From: &telego.User{ID: 7}})
+	if err != nil || !hit || banType != string(models.BanTypeInvite) || keyword != "小额洗资" {
+		t.Fatalf("bio link = %v %s %s err=%v", hit, banType, keyword, err)
+	}
+}

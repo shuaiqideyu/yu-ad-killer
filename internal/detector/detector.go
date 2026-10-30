@@ -54,17 +54,17 @@ func (dm *DetectorManager) checkAll(message *telego.Message, freshBio bool) (vio
 	}
 
 	var bioViolated bool
-	var bioKeyword string
+	var bioType, bioKeyword string
 	var bioErr error
 	if freshBio {
-		bioViolated, bioKeyword, bioErr = dm.bioDetector.CheckFresh(message)
+		bioViolated, bioType, bioKeyword, bioErr = dm.bioDetector.CheckFresh(message)
 	} else {
-		bioViolated, bioKeyword, bioErr = dm.bioDetector.Check(message)
+		bioViolated, bioType, bioKeyword, bioErr = dm.bioDetector.Check(message)
 	}
 	if bioErr != nil {
 		return false, "", "", bioErr
 	} else if bioViolated {
-		return true, "bio", bioKeyword, nil
+		return true, bioType, bioKeyword, nil
 	}
 
 	if violated, banType, keyword, err := dm.messageDetector.Check(message); err != nil {

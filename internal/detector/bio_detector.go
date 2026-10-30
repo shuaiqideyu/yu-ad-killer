@@ -5,6 +5,7 @@ import (
 	"log"
 	"strings"
 	"telegram-ban-bot/internal/cache"
+	"telegram-ban-bot/internal/database/models"
 	"telegram-ban-bot/internal/database/repository"
 	"telegram-ban-bot/pkg/utils"
 
@@ -16,6 +17,7 @@ type BioDetector struct {
 	cache   *cache.CacheService
 	bioRepo *repository.BioRepository
 	bot     *telego.Bot
+	invites *InviteResolver
 }
 
 func NewBioDetector(cache *cache.CacheService, bioRepo *repository.BioRepository, bot *telego.Bot) *BioDetector {
@@ -23,21 +25,22 @@ func NewBioDetector(cache *cache.CacheService, bioRepo *repository.BioRepository
 		cache:   cache,
 		bioRepo: bioRepo,
 		bot:     bot,
+		invites: sharedInviteResolver,
 	}
 }
 
-func (d *BioDetector) Check(message *telego.Message) (bool, string, error) {
+func (d *BioDetector) Check(message *telego.Message) (bool, string, string, error) {
 	return d.check(message, false)
 }
 
 // CheckFresh 强制刷新简介后再检测(用于进群)
-func (d *BioDetector) CheckFresh(message *telego.Message) (bool, string, error) {
+func (d *BioDetector) CheckFresh(message *telego.Message) (bool, string, string, error) {
 	return d.check(message, true)
 }
 
-func (d *BioDetector) check(message *telego.Message, forceRefresh bool) (bool, string, error) {
+func (d *BioDetector) check(message *telego.Message, forceRefresh bool) (bool, string, string, error) {
 	if message.From == nil {
-		return false, "", nil
+		return false, "", "", nil
 	}
 
 	userID := message.From.ID
@@ -45,7 +48,7 @@ func (d *BioDetector) check(message *telego.Message, forceRefresh bool) (bool, s
 	currentBio, extras, synced, err := d.getProfileTexts(userID, forceRefresh)
 	if err != nil {
 		log.Printf("[BioDetector] 获取简介失败: ID=%d Err=%v", userID, err)
-		return false, "", nil
+		return false, "", "", nil
 	}
 
 	if !synced {
@@ -58,19 +61,23 @@ func (d *BioDetector) check(message *telego.Message, forceRefresh bool) (bool, s
 
 	if matched, keyword := matchBioText(currentBio, nil); matched {
 		log.Printf("[BioDetector] 匹配: ID=%d | 关键词=%s", userID, keyword)
-		return true, keyword, nil
+		return true, "bio", keyword, nil
 	}
 	if d.cache != nil {
 		if matched, keyword := d.cache.MatchKeyword("bio", currentBio); matched {
 			log.Printf("[BioDetector] 匹配: ID=%d | 关键词=%s", userID, keyword)
-			return true, keyword, nil
+			return true, "bio", keyword, nil
 		}
+	}
+	if matched, keyword := matchInviteKeyword(d.cache, d.invites, currentBio); matched {
+		log.Printf("[BioDetector] 简介邀请链接群名匹配: ID=%d | 关键词=%s", userID, keyword)
+		return true, string(models.BanTypeInvite), keyword, nil
 	}
 	if extras != "" && utils.RussianHit(extras) != "" {
 		log.Printf("[BioDetector] 匹配: ID=%d | 关键词=资料含俄罗斯元素", userID)
-		return true, "资料含俄罗斯元素", nil
+		return true, "bio", "资料含俄罗斯元素", nil
 	}
-	return false, "", nil
+	return false, "", "", nil
 }
 
 func matchBioText(bio string, keywords []string) (bool, string) {
