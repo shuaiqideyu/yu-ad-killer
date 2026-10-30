@@ -48,6 +48,7 @@ func (h *Handler) HandleCommand(message *telego.Message) {
 	}
 	// 统一带不带斜杠两种形式
 	cmd = strings.TrimPrefix(cmd, "/")
+	cmd = strings.ToLower(cmd)
 
 	switch cmd {
 	case "start":
@@ -78,6 +79,8 @@ func (h *Handler) HandleCommand(message *telego.Message) {
 		h.handleForwardKeywordCommand(message, args)
 	case "q":
 		h.handleInviteKeywordCommand(message, args)
+	case "unname", "unbio", "unmsg", "unq", "unz", "unno":
+		h.handleRemoveKeywordCommand(message, args, strings.ToLower(cmd))
 	case "admin":
 		h.handleAdminPanel(message)
 	case "reload":
@@ -1277,6 +1280,54 @@ func (h *Handler) handleInviteKeywordCommand(message *telego.Message, args []str
 		go h.registry.SyncKeywordAdd(string(models.KeywordTypeInvite), keyword, message.From.ID)
 	}
 	h.notifySvc.SendMessage(message.Chat.ID, fmt.Sprintf("✅ 已拉黑群名关键词: <code>%s</code>", htmlEscape(keyword)))
+}
+
+func (h *Handler) handleRemoveKeywordCommand(message *telego.Message, args []string, cmd string) {
+	spec, ok := removeKeywordCommands[cmd]
+	if !ok || message.From == nil {
+		return
+	}
+	if !h.IsAdmin(message.From.ID) {
+		return
+	}
+	if !h.requireWorkGroup(message) {
+		return
+	}
+	if len(args) == 0 {
+		h.notifySvc.SendMessage(message.Chat.ID, "用法: /"+spec.cmd+" &lt;关键词&gt;")
+		return
+	}
+
+	keyword := strings.Join(args, " ")
+	removed, err := h.keywordSvc.DeleteEquivalentKeyword(spec.typ, keyword)
+	if err != nil {
+		log.Printf("[处理器] /%s 删除失败: keyword=%s err=%v", spec.cmd, keyword, err)
+		h.notifySvc.SendMessage(message.Chat.ID, "❌ 删除失败，"+spec.label+"还在")
+		return
+	}
+	if removed == "" {
+		h.notifySvc.SendMessage(message.Chat.ID, "没有这条"+spec.label+": <code>"+htmlEscape(keyword)+"</code>")
+		return
+	}
+	if h.registry != nil {
+		go h.registry.SyncKeywordDelete(string(spec.typ), removed)
+	}
+	h.notifySvc.SendMessage(message.Chat.ID, "✅ 已删除"+spec.label+": <code>"+htmlEscape(removed)+"</code>")
+}
+
+type removeKeywordSpec struct {
+	typ   models.KeywordType
+	cmd   string
+	label string
+}
+
+var removeKeywordCommands = map[string]removeKeywordSpec{
+	"unname": {models.KeywordTypeName, "unname", "昵称关键词"},
+	"unbio":  {models.KeywordTypeBio, "unbio", "简介关键词"},
+	"unmsg":  {models.KeywordTypeMsg, "unmsg", "消息关键词"},
+	"unq":    {models.KeywordTypeInvite, "unq", "群名关键词"},
+	"unz":    {models.KeywordTypeForward, "unz", "转发来源"},
+	"unno":   {models.KeywordTypeDupWhite, "unno", "水群白名单"},
 }
 
 // handleWhitelistAdd 处理加白命令: 加白 @用户名 / 加白 数字ID / 回复消息+加白

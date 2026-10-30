@@ -129,6 +129,22 @@ func (s *KeywordService) mergeEquivalentKeywords(keywords []models.Keyword) []mo
 	return kept
 }
 
+// DeleteEquivalentKeyword 按折叠后相同的词删除，返回库里实际删掉的那一条。
+// 没有对应关键词时 removed 为空。
+func (s *KeywordService) DeleteEquivalentKeyword(keywordType models.KeywordType, word string) (removed string, err error) {
+	existing, err := s.findEquivalentKeyword(keywordType, word)
+	if err != nil {
+		return "", err
+	}
+	if existing == nil {
+		return "", nil
+	}
+	if err := s.DeleteKeywordByWord(keywordType, existing.Word); err != nil {
+		return "", err
+	}
+	return existing.Word, nil
+}
+
 // DeleteKeywordByWord 按类型和词删除关键词(用于跨 Bot 同步删除)
 func (s *KeywordService) DeleteKeywordByWord(keywordType models.KeywordType, word string) error {
 	if err := s.keywordRepo.DeleteByTypeAndWord(keywordType, word); err != nil {

@@ -351,7 +351,9 @@ func (r *BotRuntime) Stop() {
 func (r *BotRuntime) registerHandlers(bh *th.BotHandler) {
 	commands := []string{
 		"start", "f", "t", "lh", "unlh", "jy", "unjy", "un",
-		"name", "bio", "msg", "no", "z", "q", "admin", "reload", "add", "cancel",
+		"name", "bio", "msg", "no", "z", "q",
+		"unname", "unbio", "unmsg", "unno", "unz", "unq",
+		"admin", "reload", "add", "cancel",
 	}
 
 	for _, cmd := range commands {
