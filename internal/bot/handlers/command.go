@@ -313,10 +313,7 @@ func (h *Handler) handleKickCommand(message *telego.Message, args []string) {
 
 	h.notifySvc.SendMessage(message.Chat.ID, fmt.Sprintf("✅ 已踢出 %s", target.DisplayName))
 
-	var kickOriginal string
-	if message.ReplyToMessage != nil {
-		kickOriginal = h.extractMessageText(message.ReplyToMessage)
-	}
+	kickOriginal := h.captureRepliedOriginal(message, "/t")
 	h.broadcastSvc.SendBanAsync(service.BanBroadcast{
 		Chat:        &message.Chat,
 		UserID:      target.ID,
@@ -391,20 +388,7 @@ func (h *Handler) handleLhCommand(message *telego.Message, args []string) {
 
 	chatID := message.Chat.ID
 	operatorID := message.From.ID
-	var msgID int
-	var msgText string
-	if message.ReplyToMessage != nil {
-		msgID = message.ReplyToMessage.MessageID
-		msgText = h.extractMessageText(message.ReplyToMessage)
-		go func(cid int64, mid int) {
-			if err := h.bot.DeleteMessage(context.Background(), &telego.DeleteMessageParams{
-				ChatID:    tu.ID(cid),
-				MessageID: mid,
-			}); err != nil {
-				log.Printf("[处理器] /lh 删除原文失败: %v", err)
-			}
-		}(chatID, msgID)
-	}
+	msgText := h.captureRepliedOriginal(message, "/lh")
 
 	durationLabel := "永久"
 	if untilDate > 0 {
@@ -441,7 +425,7 @@ func (h *Handler) handleLhCommand(message *telego.Message, args []string) {
 					log.Printf("[处理器] /lh 临时异步任务 panic: %v", r)
 				}
 			}()
-			if err := h.banService.RecordTempBan(chatID, target.ID, untilDate, persistReason, operatorID, msgID, msgText); err != nil {
+			if err := h.banService.RecordTempBan(chatID, target.ID, untilDate, persistReason, operatorID, 0, msgText); err != nil {
 				log.Printf("[处理器] /lh 临时拉黑记录失败: %v", err)
 			}
 		}()
@@ -463,7 +447,7 @@ func (h *Handler) handleLhCommand(message *telego.Message, args []string) {
 			"",
 			msgText,
 			operatorID,
-			msgID,
+			0,    // 原文已由 captureRepliedOriginal 删除
 			true, // skipKick: 当前群已 BanChatMember,避免重复
 		); err != nil {
 			log.Printf("[处理器] /lh 记录封禁状态失败: %v", err)
@@ -590,10 +574,7 @@ func (h *Handler) handleJyCommand(message *telego.Message, args []string) {
 	if durationText != "" {
 		bcDuration = durationText
 	}
-	var jyOriginal string
-	if message.ReplyToMessage != nil {
-		jyOriginal = h.extractMessageText(message.ReplyToMessage)
-	}
+	jyOriginal := h.captureRepliedOriginal(message, "/jy")
 	h.broadcastSvc.SendBanAsync(service.BanBroadcast{
 		Chat:        &message.Chat,
 		UserID:      target.ID,
@@ -996,21 +977,7 @@ func (h *Handler) handleBanCommand(message *telego.Message, args []string) {
 		return
 	}
 
-	// 同步: 如果是回复模式则尝试删除被回复消息
-	var msgID int
-	var msgText string
-	if message.ReplyToMessage != nil {
-		msgID = message.ReplyToMessage.MessageID
-		msgText = h.extractMessageText(message.ReplyToMessage)
-		go func(chatID int64, mid int) {
-			if err := h.bot.DeleteMessage(context.Background(), &telego.DeleteMessageParams{
-				ChatID:    tu.ID(chatID),
-				MessageID: mid,
-			}); err != nil {
-				log.Printf("[处理器] /f 删除消息失败: %v", err)
-			}
-		}(message.Chat.ID, msgID)
-	}
+	msgText := h.captureRepliedOriginal(message, "/f")
 
 	if msgText != "" {
 		if err := h.keywordSvc.AddKeyword(models.KeywordTypeMsg, msgText, message.From.ID); err != nil {
@@ -1052,7 +1019,7 @@ func (h *Handler) handleBanCommand(message *telego.Message, args []string) {
 			"",
 			msgText,
 			operatorID,
-			0, // 不再交给 banService 删消息(已在上方 goroutine 处理)
+			0, // 原文已由 captureRepliedOriginal 删除
 			true,
 		); err != nil {
 			log.Printf("[处理器] /f 异步封禁失败: %v", err)

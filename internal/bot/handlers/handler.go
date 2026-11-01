@@ -393,6 +393,28 @@ func (h *Handler) extractMessageText(message *telego.Message) string {
 	return strings.TrimSpace(message.Caption)
 }
 
+// captureRepliedOriginal 取出被回复原文，并在处罚成功后删掉群里那条。
+// 通知和播报用的是返回的正文，不依赖群里消息还在。
+// 管理员、作者、匿名管理员的消息只取正文，不删。
+func (h *Handler) captureRepliedOriginal(message *telego.Message, scene string) string {
+	if message == nil || message.ReplyToMessage == nil {
+		return ""
+	}
+	reply := message.ReplyToMessage
+	text := h.extractMessageText(reply)
+	if reply.MessageID <= 0 || h.banService == nil || h.isChatTelegramAdminMessage(reply) {
+		return text
+	}
+	chatID := message.Chat.ID
+	mid := reply.MessageID
+	go func() {
+		if err := h.banService.DeleteMessage(chatID, mid); err != nil {
+			log.Printf("[处理器] %s 删除原文失败: chat=%d message=%d err=%v", scene, chatID, mid, err)
+		}
+	}()
+	return text
+}
+
 const workGroupOriginalTextMaxRunes = 500
 
 // notifyWorkGroupModeration 向工作群发送管理动作通知(操作人/目标/原因/引用原文)
