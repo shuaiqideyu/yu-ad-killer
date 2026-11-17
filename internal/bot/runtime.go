@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 	"sync"
 	"telegram-ban-bot/internal/bot/handlers"
@@ -689,7 +690,14 @@ func newTelegramBot(token string) (*telego.Bot, error) {
 		MaxIdleConnDuration: 90 * time.Second,
 		MaxConnsPerHost:     128,
 	}
-	return telego.NewBot(token, telego.WithFastHTTPClient(client))
+	options := []telego.BotOption{telego.WithFastHTTPClient(client)}
+	if base := strings.TrimRight(strings.TrimSpace(os.Getenv("TELEGRAM_API_BASE")), "/"); base != "" {
+		if err := ensureLocalBot(token); err != nil {
+			return nil, err
+		}
+		options = append(options, telego.WithAPIServer(base))
+	}
+	return telego.NewBot(token, options...)
 }
 
 // isWhitelistTextCommand 判断消息是否为白名单相关的中文文本命令
